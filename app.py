@@ -1,7 +1,6 @@
 
 import streamlit as st
 import pandas as pd
-from google import genai
 
 # ---------------- PAGE CONFIGURATION ----------------
 
@@ -12,77 +11,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---------------- CUSTOM CSS ----------------
-
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap');
-
-.stApp {
-    background: #f4f6fa;
-    font-family: 'DM Sans', sans-serif;
-}
-
-[data-testid="stSidebar"] {
-    background: #142238;
-}
-
-[data-testid="stSidebar"] * {
-    color: white;
-}
-
-.block-container {
-    padding-top: 2rem;
-    max-width: 1450px;
-}
-
-.hero {
-    background: linear-gradient(120deg, #142238, #24516a);
-    padding: 35px;
-    border-radius: 18px;
-    color: white;
-    margin-bottom: 25px;
-}
-
-.hero h1 {
-    color: white;
-    font-family: 'Manrope', sans-serif;
-    font-size: 36px;
-}
-
-.hero p {
-    color: #d5e2ee;
-    font-size: 16px;
-}
-
-.metric {
-    background: white;
-    padding: 22px;
-    border-radius: 15px;
-    border: 1px solid #e5eaf0;
-}
-
-.metric-label {
-    color: #78869a;
-    font-size: 13px;
-}
-
-.metric-value {
-    color: #172a43;
-    font-size: 27px;
-    font-weight: 800;
-}
-
-div.stButton > button {
-    border-radius: 9px;
-    font-weight: 600;
-    min-height: 42px;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
 # ---------------- SESSION STATE ----------------
 
 if "projects" not in st.session_state:
@@ -90,6 +18,88 @@ if "projects" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "Dashboard"
+
+if "main_menu" not in st.session_state:
+    st.session_state.main_menu = st.session_state.page
+
+
+# ---------------- NAVIGATION FUNCTIONS ----------------
+
+def navigate_to(page):
+    st.session_state.main_menu = page
+    st.session_state.page = page
+
+
+def sync_navigation():
+    st.session_state.page = st.session_state.main_menu
+
+
+# ---------------- CUSTOM CSS ----------------
+
+st.markdown("""
+<style>
+
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: #f4f6fa !important;
+    color: #172a43 !important;
+    font-family: 'DM Sans', sans-serif;
+}
+
+[data-testid="stSidebar"] {
+    background: #142238 !important;
+}
+
+/* MAIN CONTENT TEXT */
+
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3,
+[data-testid="stMain"] p,
+[data-testid="stMain"] label,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] {
+    color: #172a43;
+}
+
+/* INPUT BOXES */
+
+[data-testid="stMain"] input,
+[data-testid="stMain"] textarea,
+[data-testid="stMain"] [data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #172a43 !important;
+    border-color: #dce4ed !important;
+}
+
+/* INPUT PLACEHOLDER */
+
+[data-testid="stMain"] input::placeholder,
+[data-testid="stMain"] textarea::placeholder {
+    color: #8492a6 !important;
+}
+
+/* FORM CONTAINER */
+
+[data-testid="stForm"] {
+    background: #ffffff;
+    padding: 22px;
+    border: 1px solid #e5eaf0;
+    border-radius: 16px;
+}
+
+/* SECTION HEADINGS */
+
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3 {
+    font-weight: 800;
+}
+
+
+
+</style>
+""", unsafe_allow_html=True)
 
 
 # ---------------- SIDEBAR ----------------
@@ -101,6 +111,8 @@ with st.sidebar:
 
     st.divider()
 
+    st.markdown("##### MAIN MENU")
+
     pages = [
         "Dashboard",
         "New Project",
@@ -110,41 +122,18 @@ with st.sidebar:
         "Settings"
     ]
 
-    selected_page = st.radio(
-        "MAIN MENU",
-        pages
+    st.radio(
+        "Navigation",
+        pages,
+        key="main_menu",
+        label_visibility="collapsed",
+        on_change=sync_navigation
     )
-
-    st.session_state.page = selected_page
 
     st.divider()
 
     st.caption("BUILD SMARTER. PLAN BETTER.")
     st.caption("SiteCraft v1.0")
-
-    st.divider()
-
-
-with st.sidebar:
-    if st.button("Test Gemini Connection", use_container_width=True):
-        try:
-            st.info("Connecting to Gemini...")
-
-            client = genai.Client(
-                api_key=st.secrets["GEMINI_API_KEY"],
-                http_options={"timeout": 120000}
-            )
-
-            result = client.interactions.create(
-                model="gemini-3.8-flash",
-                input="Reply with exactly: SiteCraft connected!"
-            )
-
-            st.success("Gemini connected successfully!")
-            st.write(result.output_text)
-
-        except Exception as e:
-            st.error(f"Connection failed: {e}")
 
 
 # ---------------- DASHBOARD ----------------
@@ -161,25 +150,30 @@ if st.session_state.page == "Dashboard":
     </div>
     """, unsafe_allow_html=True)
 
+    total_projects = len(st.session_state.projects)
+
+    total_value = sum(
+        project["Budget (₹)"]
+        for project in st.session_state.projects
+    )
+
+    completed_projects = sum(
+        1 for project in st.session_state.projects
+        if project.get("Status") == "Completed"
+    )
+
     # Dashboard metrics
 
     col1, col2, col3, col4 = st.columns(4)
 
-    total_projects = len(st.session_state.projects)
-
-    total_value = sum(
-        p["budget"] for p in st.session_state.projects
-    )
-
     metrics = [
-        (col1, "TOTAL PROJECTS", total_projects),
+        (col1, "TOTAL PROJECTS", str(total_projects)),
         (col2, "ESTIMATED VALUE", f"₹{total_value:,.0f}"),
-        (col3, "COMPLETED PROJECTS", 0),
+        (col3, "COMPLETED PROJECTS", str(completed_projects)),
         (col4, "AI STATUS", "Ready")
     ]
 
     for col, label, value in metrics:
-
         with col:
             st.markdown(f"""
             <div class="metric">
@@ -190,15 +184,19 @@ if st.session_state.page == "Dashboard":
 
     st.write("")
 
-    left, right = st.columns([1.6, 1])
+    left, right = st.columns([1.7, 1])
+
+    # Recent projects
 
     with left:
 
-        st.subheader("Recent Projects")
+        st.subheader("📋 Recent Projects")
 
         if st.session_state.projects:
 
-            df = pd.DataFrame(st.session_state.projects)
+            df = pd.DataFrame(
+                st.session_state.projects
+            )
 
             st.dataframe(
                 df,
@@ -207,63 +205,104 @@ if st.session_state.page == "Dashboard":
             )
 
         else:
-            st.info("No projects yet. Create your first project!")
+            st.info(
+                "No projects yet. Create your first project to get started!"
+            )
+
+    # Quick actions
 
     with right:
 
-        st.subheader("Quick Actions")
+        st.subheader("⚡ Quick Actions")
 
-        if st.button("＋ Create New Project", use_container_width=True):
-            st.session_state.page = "New Project"
+        if st.button(
+            "＋ Create New Project",
+            use_container_width=True,
+            type="primary"
+        ):
+            navigate_to("New Project")
             st.rerun()
 
-        if st.button("✦ AI Estimation", use_container_width=True):
-            st.session_state.page = "AI Estimation"
+        if st.button(
+            "✦ AI Estimation",
+            use_container_width=True
+        ):
+            navigate_to("AI Estimation")
             st.rerun()
 
-        if st.button("▤ Generate Invoice", use_container_width=True):
-            st.session_state.page = "Invoice Generator"
+        if st.button(
+            "▤ Generate Invoice",
+            use_container_width=True
+        ):
+            navigate_to("Invoice Generator")
             st.rerun()
+
+        st.write("")
+
+        st.caption("Your construction workspace, all in one place.")
+
 
 
 # ---------------- NEW PROJECT ----------------
 
 elif st.session_state.page == "New Project":
 
-    st.title("Create New Project")
-    st.caption("Enter your construction project details.")
+    st.title("🏗️ Create New Project")
+    st.caption("Set up your construction project details.")
+
+    st.divider()
+
+    st.subheader("Project Information")
 
     with st.form("project_form"):
 
-        project_name = st.text_input("Project Name")
+        col1, col2 = st.columns(2)
 
-        client_name = st.text_input("Client Name")
+        with col1:
+            project_name = st.text_input(
+                "Project Name *",
+                placeholder="Example: Dream Villa"
+            )
 
-        project_type = st.selectbox(
-            "Project Type",
-            [
-                "Residential",
-                "Commercial",
-                "Renovation",
-                "Interior Design"
-            ]
-        )
+            client_name = st.text_input(
+                "Client Name",
+                placeholder="Enter client name"
+            )
 
-        area = st.number_input(
-            "Built-up Area (sq.ft)",
-            min_value=0.0,
-            value=1200.0
-        )
+        with col2:
+            project_type = st.selectbox(
+                "Project Type",
+                [
+                    "Residential",
+                    "Commercial",
+                    "Renovation",
+                    "Interior Design"
+                ]
+            )
+
+            area = st.number_input(
+                "Built-up Area (sq.ft)",
+                min_value=0.0,
+                value=1200.0
+            )
+
+        st.divider()
+
+        st.subheader("Budget Details")
 
         budget = st.number_input(
             "Estimated Budget (₹)",
             min_value=0.0,
-            value=1000000.0
+            value=1000000.0,
+            step=50000.0
         )
 
+        st.caption("Fields marked * are required.")
+
         submit = st.form_submit_button(
-            "Create Project",
-            type="primary"
+            "＋ Create Project",
+            type="primary",
+            use_container_width=True
         )
 
         if submit:
@@ -271,33 +310,45 @@ elif st.session_state.page == "New Project":
             if not project_name.strip():
                 st.error("Please enter a project name.")
 
+            elif any(
+                p["Project"].strip().lower() == project_name.strip().lower()
+                for p in st.session_state.projects
+            ):
+                st.error("A project with this name already exists.")
+
             else:
 
                 project = {
-                    "Project": project_name,
-                    "Client": client_name,
+                    "Project": project_name.strip(),
+                    "Client": client_name.strip(),
                     "Type": project_type,
                     "Area (sq.ft)": area,
-                    "Budget (₹)": budget
+                    "Budget (₹)": budget,
+                    "Status": "Planning"
                 }
 
                 st.session_state.projects.append(project)
 
-                st.success("Project created successfully!")
+                st.success(
+                    f"Project '{project_name}' created successfully!"
+                )
+
 
 
 # ---------------- AI ESTIMATION ----------------
 
 elif st.session_state.page == "AI Estimation":
 
-    st.title("AI Construction Estimation")
+    st.title("✦ AI Construction Estimation")
 
-    st.write(
+    st.caption(
         "Generate preliminary construction estimates "
         "using Google's Gemini AI."
     )
 
-    st.info("Gemini integration will be added in the next development stage.")
+    st.info(
+        "The AI estimation interface is ready for backend integration."
+    )
 
     description = st.text_area(
         "Describe your construction project",
@@ -307,47 +358,57 @@ elif st.session_state.page == "AI Estimation":
     if st.button("Generate AI Estimate", type="primary"):
 
         if description.strip():
-            st.warning("Gemini API integration is coming next.")
+            st.warning(
+                "AI integration will be connected with Vishnu's backend."
+            )
         else:
-            st.error("Enter project details first.")
+            st.error("Please enter your project details.")
 
 
 # ---------------- INVOICE GENERATOR ----------------
 
 elif st.session_state.page == "Invoice Generator":
 
-    st.title("Invoice Generator")
+    st.title("▤ Invoice Generator")
 
-    st.write(
-        "Generate professional construction invoices."
+    st.caption(
+        "Create professional construction invoices."
     )
 
-    st.info("Invoice generation module will be connected next.")
+    st.info(
+        "Invoice generation interface is ready for development."
+    )
 
 
 # ---------------- PROJECT HISTORY ----------------
 
 elif st.session_state.page == "Project History":
 
-    st.title("Project History")
+    st.title("📁 Project History")
+
+    st.caption("View your previously created projects.")
 
     if st.session_state.projects:
 
+        df = pd.DataFrame(
+            st.session_state.projects
+        )
+
         st.dataframe(
-            pd.DataFrame(st.session_state.projects),
+            df,
             use_container_width=True,
             hide_index=True
         )
 
     else:
-        st.info("No project history available.")
+        st.info("No project history available yet.")
 
 
 # ---------------- SETTINGS ----------------
 
 elif st.session_state.page == "Settings":
 
-    st.title("Settings")
+    st.title("⚙️ Settings")
 
     st.subheader("Application Information")
 
@@ -356,26 +417,6 @@ elif st.session_state.page == "Settings":
     st.write("AI Provider: Google Gemini")
     st.write("Version: 1.0")
 
-    st.info("Gemini API configuration will be added next.")
-
-
-
-if st.button("Test Gemini Connection", use_container_width=True):
-    st.info("Connecting to Gemini...")
-
-    try:
-        client = genai.Client(
-            api_key=st.secrets["GEMINI_API_KEY"]
-        )
-
-        response = client.interactions.create(
-            model="gemini-3.8-flash",
-            input="Reply with exactly: SiteCraft connected!"
-        )
-
-        st.success("Gemini connected successfully!")
-        st.write(response.output_text)
-
-    except Exception as e:
-        st.error(f"Connection failed: {e}")
-
+    st.info(
+        "Backend configuration will be integrated during the next stage."
+    )
