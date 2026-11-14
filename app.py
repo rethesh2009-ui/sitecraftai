@@ -1,6 +1,9 @@
 
 import streamlit as st
 import pandas as pd
+import base64
+import re
+from google import genai
 
 # ---------------- PAGE CONFIGURATION ----------------
 
@@ -26,7 +29,6 @@ if "main_menu" not in st.session_state:
 # ---------------- NAVIGATION FUNCTIONS ----------------
 
 def navigate_to(page):
-    st.session_state.main_menu = page
     st.session_state.page = page
 
 
@@ -95,6 +97,115 @@ st.markdown("""
 [data-testid="stMain"] h3 {
     font-weight: 800;
 }
+
+
+/* RESTORE HERO SECTION */
+
+.hero {
+    background: linear-gradient(120deg, #142238, #24516a);
+    padding: 38px;
+    border-radius: 20px;
+    color: white;
+    margin-bottom: 28px;
+    min-height: 195px;
+}
+
+.hero h1 {
+    color: white !important;
+    font-family: 'Manrope', sans-serif;
+    font-size: 38px;
+    font-weight: 800;
+}
+
+.hero p {
+    color: #d5e2ee !important;
+    font-size: 16px;
+}
+
+/* RESTORE METRIC CARDS */
+
+.metric {
+    background: #ffffff !important;
+    padding: 22px;
+    border-radius: 16px;
+    border: 1px solid #e5eaf0;
+    box-shadow: 0 3px 12px rgba(20,34,56,0.05);
+    min-height: 115px;
+}
+
+.metric-label {
+    color: #78869a !important;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.metric-value {
+    color: #172a43 !important;
+    font-size: 27px;
+    font-weight: 800;
+    margin-top: 9px;
+}
+
+/* RESTORE EMPTY PROJECT MESSAGE */
+
+[data-testid="stAlert"] {
+    background: #ffffff !important;
+    color: #172a43 !important;
+    border: 1px solid #e5eaf0;
+    border-radius: 12px;
+}
+
+
+/* =================================
+   QUICK ACTION BUTTONS
+================================= */
+
+div.stButton > button {
+    background-color: #167d83 !important;
+    color: #ffffff !important;
+    border: 1px solid #167d83 !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    min-height: 44px;
+}
+
+div.stButton > button p,
+div.stButton > button span {
+    color: #ffffff !important;
+}
+
+div.stButton > button:hover {
+    background-color: #11676c !important;
+    border-color: #11676c !important;
+}
+
+/* =================================
+   RECENT PROJECTS MESSAGE
+================================= */
+
+[data-testid="stAlert"] {
+    background-color: #ffffff !important;
+    border: 1px solid #dce4ed !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stAlert"] p {
+    color: #172a43 !important;
+}
+
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+    color: #172a43 !important;
+}
+
+/* =================================
+   RECENT PROJECTS DATA
+================================= */
+
+[data-testid="stDataFrame"] {
+    background-color: #ffffff !important;
+    border-radius: 12px;
+}
+
 
 
 
@@ -204,10 +315,22 @@ if st.session_state.page == "Dashboard":
                 hide_index=True
             )
 
+        
         else:
-            st.info(
-                "No projects yet. Create your first project to get started!"
-            )
+            st.markdown("""
+            <div style="
+                background-color: #ffffff;
+                border: 1px solid #dce4ed;
+                border-radius: 12px;
+                padding: 20px;
+                color: #172a43;
+                font-size: 15px;
+                font-weight: 500;
+            ">
+                No projects yet. Create your first project to get started!
+            </div>
+            """, unsafe_allow_html=True)
+
 
     # Quick actions
 
@@ -335,34 +458,269 @@ elif st.session_state.page == "New Project":
 
 
 
-# ---------------- AI ESTIMATION ----------------
+
+# ---------------- AI ESTIMATION / INTERIOR DESIGN ----------------
 
 elif st.session_state.page == "AI Estimation":
 
-    st.title("✦ AI Construction Estimation")
+    
+
+    st.title("✦ AI Interior Designer")
 
     st.caption(
-        "Generate preliminary construction estimates "
-        "using Google's Gemini AI."
+        "Upload your wall photo, explore AI design ideas "
+        "and generate your customised interior design."
     )
 
-    st.info(
-        "The AI estimation interface is ready for backend integration."
+    st.divider()
+
+    # STEP 1: UPLOAD WALL PHOTO
+
+    st.subheader("1. Upload Your Wall Photo")
+
+    uploaded_file = st.file_uploader(
+        "Choose a photo of your wall",
+        type=["jpg", "jpeg", "png", "webp"],
+        help="Upload a clear photo of the wall you want to decorate."
     )
 
-    description = st.text_area(
-        "Describe your construction project",
-        placeholder="Example: Build a 2BHK residential house..."
-    )
+    if uploaded_file:
+        st.image(
+            uploaded_file,
+            caption="Your original wall",
+            use_container_width=True
+        )
 
-    if st.button("Generate AI Estimate", type="primary"):
+        if st.button("Analyse My Wall & Suggest Designs", type="primary"):
 
-        if description.strip():
-            st.warning(
-                "AI integration will be connected with Vishnu's backend."
+            try:
+                client = genai.Client(
+                    api_key=st.secrets["GEMINI_API_KEY"],
+                    http_options={"timeout": 120000}
+                )
+
+                image_bytes = uploaded_file.getvalue()
+
+                with st.spinner("Gemini is analysing your wall..."):
+
+                    analysis = client.interactions.create(
+                        model="gemini-3.8-flash",
+                        input=[
+                            {
+                                "type": "text",
+                                "text": """
+                                Analyse this wall photograph for interior design.
+
+                                Suggest exactly THREE different, practical
+                                interior wall design ideas.
+
+                                Consider the existing wall, its appearance,
+                                lighting and visible surroundings.
+
+                                Return exactly three numbered suggestions.
+                                Each suggestion should include:
+                                - Design style
+                                - Suggested materials
+                                - Colour combination
+                                - Decorative elements
+
+                                Keep each suggestion concise.
+                                Do not provide prices.
+                                """
+                            },
+                            {
+                                "type": "image",
+                                "data": base64.b64encode(
+                                    image_bytes
+                                ).decode("utf-8"),
+                                "mime_type": uploaded_file.type
+                            }
+                        ]
+                    )
+
+                suggestions_text = analysis.output_text or ""
+
+                suggestions = []
+
+                for line in suggestions_text.splitlines():
+                    line = re.sub(
+                        r"^\s*(?:\d+[).:-]?|[-*•])\s*",
+                        "",
+                        line
+                    ).strip()
+
+                    if line:
+                        suggestions.append(line)
+
+                suggestions = suggestions[:3]
+
+                if len(suggestions) < 3:
+                    st.error(
+                        "Gemini did not return three suggestions. "
+                        "Please try analysing the photo again."
+                    )
+                else:
+                    st.session_state["sitecraft_wall_image"] = image_bytes
+                    st.session_state["sitecraft_wall_mime"] = uploaded_file.type
+                    st.session_state["sitecraft_suggestions"] = suggestions
+                    st.session_state["sitecraft_generated_image"] = None
+
+                    st.success("Your wall analysis is complete!")
+
+            except Exception as e:
+                st.error(f"Unable to analyse the image: {e}")
+
+    # STEP 2: SHOW DESIGN SUGGESTIONS
+
+    if st.session_state.get("sitecraft_suggestions"):
+
+        st.divider()
+        st.subheader("2. Explore AI Design Suggestions")
+
+        suggestions = st.session_state["sitecraft_suggestions"]
+
+        for index, suggestion in enumerate(suggestions, start=1):
+            with st.container(border=True):
+                st.markdown(f"**Design Option {index}**")
+                st.write(suggestion)
+
+        # STEP 3: CUSTOMER CHOICE
+
+        st.divider()
+        st.subheader("3. Choose Your Design")
+
+        design_choice = st.radio(
+            "How would you like to continue?",
+            [
+                "Choose an AI suggestion",
+                "Create my own design idea"
+            ]
+        )
+
+        selected_design = ""
+
+        if design_choice == "Choose an AI suggestion":
+
+            selected_design = st.selectbox(
+                "Select your favourite design",
+                suggestions
             )
+
         else:
-            st.error("Please enter your project details.")
+
+            selected_design = st.text_area(
+                "Describe your dream wall design",
+                placeholder=(
+                    "Example: I want a modern wooden panel wall "
+                    "with warm LED lighting and a marble finish."
+                )
+            )
+
+        # STEP 4: GENERATE CUSTOM DESIGN IMAGE
+
+        if st.button("Generate My Interior Design", type="primary"):
+
+            if not selected_design.strip():
+
+                st.error("Please select or describe a design first.")
+
+            else:
+
+                try:
+                    client = genai.Client(
+                        api_key=st.secrets["GEMINI_API_KEY"],
+                        http_options={"timeout": 120000}
+                    )
+
+                    with st.spinner(
+                        "Gemini is creating your interior design..."
+                    ):
+
+                        image_generation = client.interactions.create(
+                            model="gemini-3.1-flash-image",
+                            input=[
+                                {
+                                    "type": "text",
+                                    "text": f"""
+                                    Redesign the wall in the provided
+                                    photograph.
+
+                                    Customer's chosen design:
+                                    {selected_design}
+
+                                    Create a realistic interior design
+                                    visualisation of this same wall.
+
+                                    Preserve the original room layout,
+                                    wall position and camera perspective
+                                    as much as possible.
+
+                                    Apply the requested materials,
+                                    colours, lighting and decorations.
+
+                                    Make the result look like a
+                                    professionally designed interior.
+                                    """
+                                },
+                                {
+                                    "type": "image",
+                                    "data": base64.b64encode(
+                                        st.session_state[
+                                            "sitecraft_wall_image"
+                                        ]
+                                    ).decode("utf-8"),
+                                    "mime_type": st.session_state[
+                                        "sitecraft_wall_mime"
+                                    ]
+                                }
+                            ]
+                        )
+
+                    generated_image = image_generation.output_image
+
+                    if generated_image:
+
+                        generated_bytes = base64.b64decode(
+                            generated_image.data
+                        )
+
+                        st.session_state[
+                            "sitecraft_generated_image"
+                        ] = generated_bytes
+
+                        st.session_state[
+                            "sitecraft_selected_design"
+                        ] = selected_design
+
+                    else:
+                        st.error(
+                            "Gemini did not return an image. "
+                            "Please try again."
+                        )
+
+                except Exception as e:
+                    st.error(f"Image generation failed: {e}")
+
+        # STEP 5: DISPLAY GENERATED DESIGN
+
+        if st.session_state.get("sitecraft_generated_image"):
+
+            st.divider()
+            st.subheader("4. Your Custom Interior Design")
+
+            st.image(
+                st.session_state["sitecraft_generated_image"],
+                caption="AI-generated interior design concept",
+                use_container_width=True
+            )
+
+            st.success("Your interior design preview is ready!")
+
+            st.info(
+                "Next: We will connect this design to the "
+                "AI construction cost estimation feature."
+            )
+
 
 
 # ---------------- INVOICE GENERATOR ----------------
